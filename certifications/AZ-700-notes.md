@@ -1,0 +1,88 @@
+# AZ 700
+
+- 5 IP addresses of every subnet are reserved: the first 4 + the last one
+- Azure DNS Private Resolver
+  - Azure private DNS records can be used OnPrem
+  - Provides DNS services between On-Prem and Azure
+  - Conditional forwarding -> e.g. if internet needs to be resolved, the Azure DNS Private Resolver can forward those requests to an internet DNS server
+  - Inbound (from on prem to azure)/output (from azure to on prem) endpoints, latter will be forwarded to onprem DNS
+- Public IP prefixes:
+  - Pull from predictable list of public IP addresses
+  - Choose up to 16 addresses to be reserved that will be next to each other
+  - Advantages: Whitelisting, faster creation
+- VMs can be attached to multiple private and public IP addresses
+
+## VPN
+- Site-to-Site VPN:
+  - Via IPsec Tunnel -> connects 2 public IP addresses on each side
+  - Network gateways on each side (VPN gateway on Azure side)
+  - Gateway Subnet (specific subnet) needs to be created
+  - Service: Virtual network gateway (VPN device, handles also encryption/decryption)
+    - Configuration
+      - VPN types in Azure
+        - Route-based: Route tables define where to send packets to, the tunnels themselves allow all traffic
+        - Policy-based: Each VPN tunnel defines a policy of which traffic to permit
+      - SKUs:
+        - Basic: 10 Tunnels, no P2S OpenVPN Connections, less bandwidth, legacy SKU
+        - VpnGw1-5: More tunnels, more P2S connection, more bandwidth
+      - Generation:
+        - 1: Less P2S connections
+        - 2: More P2S connections
+      - Active-active mode: 2 connections in parallel for failover
+      - BGP protocol support for route-based VPNs - e.g. for Hub and Spoke models
+    - Connections can bbe added with Local network gateway as target to establish VPN connection
+      - Shared key (PSK) is required on each side, wwill be exchanged by IKE protocol
+      - Types: VNet-to-VNet, Site-to-Site (IPsec), ExpressRoute
+  - Virtual WAN should be used if you need more than 30 S2S connections
+  - Local Network Gateway:
+    - Representation of OnPrem gateway (pointing to OnPrem VPN gateway)
+    - Configuration:
+      - Endpoint: IP or FQDN
+      - Define address space of Onprem network that does not overlap with Azure network
+      - BGP support
+- Extended networks for azure:
+  - Extend Azure network with onprem network (e.g. Server cannot be moved to the cloud)
+  - Alternatives should always be preferred (e.g. move server to Azure)
+  - Using VXLAN tunnel between 2 Windows Server 2019 (2022 for the one in Azure) VMs that are capable of running nested virtualization
+  - In Windows Admin center, there is an extension for extended networks
+  - After tunnel has been established, IP addresses need to be defined that shall be extended into Azure
+- Point-2-Site VPN:
+  - Individuals connecting to Azure
+  - A root certificate needs to be created, each client needs a certificate to connect, signed by the root cert
+  - Configuration:
+    - Address pool assigned to clients dynamically 
+    - Root certificate public data
+    - Revoked client certificates
+  - VPN Client can be downloaded from Azure directly to start a connection from client side
+  - Certificates public/private keys can be exported on Windows using certmgr
+  - Export client cert in pfx format with private key
+- Tunnel types:
+  - OpenVPN
+  - SSTP
+  - IKEv2 (alone, with OpenVPn or with SSTP)
+- Authentication types:
+  - Azure certificate
+  - RADIUS auth.: Required RADIUS server, can be used onprem AD and SSO
+  - Azure AD
+
+# ExpressRoute
+- Onprem network connected to network provider edge location with dedicated line
+- network provider has a primary/secondary dedicated connection to microsoft edge network
+- Pricing based on bandwidth
+- Inbound data transfer is free, unlimited data plan is available
+- SKUs:
+  - ER Premium to connect to all regions, otherwise only a single region
+  - Standard: Connect to all regions within one geography (e.g. West Europe + France Central)
+  - Local SKU: Only one Azure region in the same metro, no extra egress data transfer fee
+- Global Reach: Multiple ExpressRoute connections can be connected (WAN)
+- ER Direct: No network provider required, network will be connected directly with Azure network, ühysical isolation (higher security)
+- Configuration via Virtual Network Gateway
+  - SKUs:
+    - Standard: Does not support ER + VPN together and lesss circuit connections
+    - High Performance: VPN + ER
+    - Ultra: Fast path, highest bandwidth
+  - Can be deployed in 1-3 AZs (increased pricing)
+  - Requires public IP
+
+# Bookmark
+- Abschnitt 6 Beginning
