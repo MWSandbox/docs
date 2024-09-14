@@ -1,18 +1,17 @@
 # AZ 700
 
 - 5 IP addresses of every subnet are reserved: the first 4 + the last one
-- Azure DNS Private Resolver
-  - Azure private DNS records can be used OnPrem
-  - Provides DNS services between On-Prem and Azure
-  - Conditional forwarding -> e.g. if internet needs to be resolved, the Azure DNS Private Resolver can forward those requests to an internet DNS server
-  - Inbound (from on prem to azure)/output (from azure to on prem) endpoints, latter will be forwarded to onprem DNS
 - Public IP prefixes:
   - Pull from predictable list of public IP addresses
   - Choose up to 16 addresses to be reserved that will be next to each other
   - Advantages: Whitelisting, faster creation
-- VMs can be attached to multiple private and public IP addresses
+- VMs can communicate between subnets on the same VNET if there is no additional NSG setup
 
-## VPN
+# VMs
+- VMs can be attached to multiple private and public IP addresses
+- Inbound ports can be specified for VMs -> will generate NSG automatically
+
+# VPN
 - Site-to-Site VPN:
   - Via IPsec Tunnel -> connects 2 public IP addresses on each side
   - Network gateways on each side (VPN gateway on Azure side)
@@ -84,5 +83,41 @@
   - Can be deployed in 1-3 AZs (increased pricing)
   - Requires public IP
 
+# Security
+- Firewall vs WAF on Application Gateway:
+  - WAF only filters incoming HTTPS traffic, handles Cross Site Scripting, etc.
+  - Firewall also outgoing and non HTTPS traffic, more logic
+  - Route table needs to be configured to route traffic through the firewall subnet - can also be setup the same way for App gateway
+  - if both are configured: route inbound traffic through app gateway subnet and outbound traffic through firewall subnet
+  - Azure Firewall requires its own dedicated subnet
+
+# Service endpoints
+- Need to be setup on the subnet side and on the service side that should be connected
+- Better performance and latency compared to public / Azure managed network
+- Increased security
+
+# DNS
+- Azure DNS Private Resolver
+  - Azure private DNS records can be used OnPrem
+  - Provides DNS services between On-Prem and Azure
+  - Conditional forwarding -> e.g. if internet needs to be resolved, the Azure DNS Private Resolver can forward those requests to an internet DNS server
+  - Inbound (from on prem to azure)/output (from azure to on prem) endpoints, latter will be forwarded to onprem DNS
+- Public DNS zone
+  - You can register any domain name -> Multiple Name servers of azure will be displayed
+  - Azure name servers need to be configured in a domain name registrar
+- Records:
+  - A = Point to IPv4 address
+  - CNAME = Link subdomain to another record
+  - NS = Authorative name server for that domain
+  - SOA = Start of Authority - stores metadata like the email address of the admin
+  - Use @ sign in DNS record to refer to the standard domain name without subdomain
+- Private DNS Zone:
+  - No NS record
+  - Needs to be linked to VNETs
+  - Auto registration can be enabled -> All VMs will automatically receive a nicename
+
 # Bookmark
-- Abschnitt 6 Beginning
+- Abschnitt 7 - LAB
+
+# Todos
+- Service endpoint policies?
