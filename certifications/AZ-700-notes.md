@@ -116,8 +116,51 @@
   - Needs to be linked to VNETs
   - Auto registration can be enabled -> All VMs will automatically receive a nicename
 
+# Connecting VNETs
+- VNET peering
+  - Types:
+    - Standard: Within the same region
+    - Global: Across Azure regions
+  - Traffic over Microsoft backbone network, not public internet
+  - Pricing for outbount and inbound traffic even for standard VNET peering (charged twice)
+  - IP ranges should not be overlapping
+  - Configuration:
+    - Block traffic from one direction to the other
+    - Allow forwarding of traffic from one direction to the other
+    - Virtual network gateway or Route server can be configured
+  - Sensitive data should be encrypted -> Use network gateway
+- VPN Gateway
+  - Traffic over public Internet via IPSec tunnel
+  - Slower, different pricing (inbound is free)
+- Network gateway
+
+# WAN
+- Hub & Spoke:
+  - All network connect to one hub, instead of connecting all networks to each other
+- Virtual WAN:
+  - Types:
+    - Basic: Only VPN S2S
+    - Standard: ExpressrRoute, all VPN options, VNET-to-VNET, etc.
+  - Pricing:
+    - Per hour, per GB of use, bandwidth dependent, per connection
+  - Hub:
+    - Has its own network private address space
+    - Can create gatewways for VPN S2S/P2S and ExpressRoute
+    - Options for traffic to tracel accross Microsoft network as long as possible before it enters public internet
+  - VPN Sites:
+    - Similar to local network gateway for the Virtual WAN
+    - Links can be added for the actual VPN Gateway OnPrem: IP address, BPG address, ASN number, Link speed etc. need to be entered
+    - After creating the link, the site needs to be connected:
+      - Pre-shared key can be entered, protocol and routing options can be selected
+  - Virtual network connections:
+    - VNETs can be selected and route table assigned
+
 # Bookmark
 - Abschnitt 7 - LAB
 
 # Todos
 - Service endpoint policies?
+- Network address calculation
+- Virtual network gateway or route server for VNET peering
+- ASN number?
+- Check what route tables are created through the Virtual WAN for VNETs
