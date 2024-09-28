@@ -10,6 +10,7 @@
 # VMs
 - VMs can be attached to multiple private and public IP addresses
 - Inbound ports can be specified for VMs -> will generate NSG automatically
+- Availability set: Logical groupings to reduce chance of correlated failures by assigning different fault domains
 
 # VPN
 - Site-to-Site VPN:
@@ -155,8 +156,66 @@
   - Virtual network connections:
     - VNETs can be selected and route table assigned
 
+# Routing
+- System routes: Default set of routes
+  - Routing within the VNET
+  - 0.0.0.0/0 -> Internet
+- VNet ppering, Virtual network gateway, Service Endpoints -> Will add routes to the system route table
+- Route tables can be created / assigned per subnet
+- IP forwarding needs to be enabled on the NIC and within the OS to allow the device receiving traffic that is sent to a different IP 
+- Forced tunnel: Go through VPN tunnel instead of going directly to the internet
+  - Frontend still can route directly to the internet, but mid-tier and backend should be routed through OnPrem for increased security
+
+# Load Balancing
+
+![Decision tree](./resources/load-balancing-decision-tree.png)
+
+## Load Balancer
+- Basic tier is free
+  - Up to 300 instances
+  - VMs in a single availability set or a VMSS
+  - Health probes (TCP, HTTP)
+  - Does NOT support: Multiple AZs, high Availability, HTTPS health probes, optional NSG, no SLAs
+- Standard tier:
+  - Up to 1.000 instances
+  - Any VM, any VMSS in a single VNet
+  - HTTPS health probe, multi AZ, high availability (for internal LB), 99,99% SLA supported
+  - NSG is required
+- Public vs. internal/private LBs
+- Layer 4 (transport)
+- High availability through global load balancer that can balance regional LBs
+- Multiple IPs can be connected to the same LB
+- Health probes need to be added manually:
+  - HTTP GET to a specific path (check for 200 response) or TCP with interval and unhealthy threshold
+- Only supports balancing traffic inside a single VNet
+- Load balancing rules:
+  - Specify protocol, port and FE IP
+  - Port can be changed while routing
+  - Session persistence can be set (always route to the same server within the same session), idle timeout for sessions can be set
+  - Floating IP: To reach the same port on the same VM multiple times (requires multiple NICs)
+- Good use case in front of IaaS (VMs)
+
+## Application Gateway
+  - Layer 7 (application) -> URLs, paths, etc.
+  - Limited to HTTP/web traffic
+  - Optionally includes WAF
+  - Supports load balancing across different AZs and VNets within a single region
+  - Can be used with AKS as Application GW Ingress Controller
+
+## Traffic Manager
+  - DNS based global routing between regions -> e.g. closed geographically routing
+  - Automatic failover when one region goes down
+  - Not only limited to web traffic
+
+## Azure Front Door
+  - Global load balancing
+  - Layer 7 (application)
+  - Optionally includes WAF, caching and app acceleration features
+  - Support SSL offloading
+  - Good use case in front of PaaS (Functions, App Service, etc.)
+
 # Bookmark
-- Abschnitt 7 - LAB
+- Abschnitt 11 - LAB
 
 # Todos
 - Service endpoint policies?
