@@ -201,14 +201,48 @@
   - Optionally includes WAF
   - Supports load balancing across different AZs and VNets within a single region
   - Can be used with AKS as Application GW Ingress Controller
+  - SKUs: Standard or with WAF
+  - Autoscaling options for the Gateway itself
+  - Supports public/private or both IP configs for Frontend
+  - Supports other services in addition to azure VMs (compared to Load Balancer): App Services, IP addresses, FQDNs
+  - Routing rules:
+    - HTTP/HTTPS traffic only
+    - Multi-site to register more web applications on the same port (e.g. with different FQDNs)
+    - Cookie-based affinity to root based on cookies to the same target server
+    - Connection draining: When server gets shutdown, wait until there is no more traffic 
+    - Backend paths and host names can be overriden
+    - Path-based routing rules
+  - HTTP headers can be rewritten
+    - Associated with routing rules
+    - Conditions and priorities can be added
+    - Can modify request and response headers
+    - URLs can be also rewritten, e.g. to respond with a different API path than the actual server
+  - Manual and autoscaling options (min. 2 instances) for app gateway itself
+  - WAF modes: Detection (without any actions) vs. Prevention
 
 ## Traffic Manager
   - DNS based global routing between regions -> e.g. closed geographically routing
   - Automatic failover when one region goes down
   - Not only limited to web traffic
+  - Similar to Front Door, but without caching, WAF, etc. -> only routing
+  - Config:
+    - DNS name with suffix trafficmanager.net (CNAME can be used)
+    - Routing methods: Performance, Weighted (% based), Priority (All traffic to one location as long as available), Geographic, MultiValue (Return all IPs for a given DNS), Subnet (CIDR)
+  - Possible endpoints: Azure (either choose service or public ip), External, Nested (another traffic manager (e.g. first geographic, then performance))
 
 ## Azure Front Door
   - Global load balancing
+  - Frontend config:
+    - host name with azurefd.net suffic -> CNAME to redirect own DNS
+  - Backend config:
+    - Supports also Storage Accounts, Application Gateway, API Management, Traffic Manager
+    - Health probes (HTTP or HTTPS)
+  - Routing:
+    - Path-based, URL rewrite
+    - Forward vs. Redirect (change URL)
+  - Caching feature for static content and dynamic compression to enhance performance
+    - Cache can be purged on demand
+  - Offers session affinity and WAF features
   - Layer 7 (application)
   - Optionally includes WAF, caching and app acceleration features
   - Support SSL offloading
@@ -223,3 +257,4 @@
 - Virtual network gateway or route server for VNET peering
 - ASN number?
 - Check what route tables are created through the Virtual WAN for VNETs
+- Traffic manager + Front door
