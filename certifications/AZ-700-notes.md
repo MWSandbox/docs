@@ -11,6 +11,7 @@
 - VMs can be attached to multiple private and public IP addresses
 - Inbound ports can be specified for VMs -> will generate NSG automatically
 - Availability set: Logical groupings to reduce chance of correlated failures by assigning different fault domains
+- DNS servers can be configured in NIC settings
 
 # VPN
 - Site-to-Site VPN:
@@ -91,6 +92,63 @@
   - Route table needs to be configured to route traffic through the firewall subnet - can also be setup the same way for App gateway
   - if both are configured: route inbound traffic through app gateway subnet and outbound traffic through firewall subnet
   - Azure Firewall requires its own dedicated subnet
+
+## Azure Firewall
+- Microsoft Threat Intelligence: Knows malicious IPs and FQDNs
+- Needs to be placed in its own subnet which needs to be called "AzureFirewallSubnet"
+- Tiers:
+  - Standard
+  - Premium: 
+    - TLS inspection (TLS termination / 2 separate TLS connections from source to target)
+    - URL filtering
+    - IDPS (intrusion detection and prevention system, check byte sequencey in network traffic, etc.)
+    - Web categories: Categorizes URLS using the complete URL not only FQDN (standard) - e.g.: google.com/news -> News
+- Firewall management:
+  - via firewall policies
+    - Policiy config:
+      - Can be added via collections or single rules
+      - Priorities will be used
+      - Allow/Deny
+      - Define Source and Destination (IP/FQDN) as well as ports
+      - Rule groups to collect rules / rule collections
+    - Types:
+      - Parent policy: Inheritance of rules
+      - Rule collections: Set of rules with same priorities and action
+      - DNAT rules: TCP/UDP protocols + ports + translated address and port
+        - E.g. use public ip of firewall and RDP port -> forward it to private VM + RDP port
+      - Network rules: TCP/UDP/ICMP/Any + ports
+        - Can be used to Allow DNS lookup (UDP port 53) and add IP addresses of DNS servers
+      - Application rules: http/https/etc. protocols + ports
+  - via firewall rules (classic)
+- Requires public IP
+- Traffic needs to be routed through the firewall network (use private IP address of firewall)
+- Firewall manager:
+  - Allows management of firewall policies across network
+  - Types of networks that can be secured that way: Virtual WAN, Hub + Spoke
+  - Detect VNets / WAN that do not have firewall attached to it
+  - Policies can be associated with other networks / hubs
+## WAF
+- Core rule set which protects against OWASP (supports different versions)
+- Integrations to application gateway, front door, CDN
+- WAF global policy with managed rules for OWASP
+- Custom rules can be added and can override default rules:
+  - Priority
+  - Match Type (e.g. string)
+  - Match Variable (e.g. RequestUri)
+  - Operation (is / is not)
+  - Operator (e.g. contains)
+  - Transformations
+  - Match Values
+  - Action (Allow / deny)
+## NSGs
+- Default rules cannot be altered: 
+  - Inbound: Allow within Vnet traffic, load balancer traffic and deny everything else
+  - Outound: Allow towards Vnet, Internet, deny anything else (other private IPs)
+- Can be attached to NICs or subnets
+- Applications (https, etc.) and protocols (TCP, UDP, ICMP) configurable
+- Source / targets: IPs / Service Tags / Application Security Group
+- Service Tags: Internet, etc. -> A group of IP address prefixes from a given Azure service
+- Application security group: Group together resources with the samen security / network requirements
 
 # Service endpoints
 - Need to be setup on the subnet side and on the service side that should be connected
@@ -247,6 +305,10 @@
   - Optionally includes WAF, caching and app acceleration features
   - Support SSL offloading
   - Good use case in front of PaaS (Functions, App Service, etc.)
+
+# NAT Gateway
+- Idle timeout until connections get removed
+- Autom. sets up routing for the subnet to rout everything through the gateway
 
 # Bookmark
 - Abschnitt 11 - LAB
