@@ -310,6 +310,63 @@
 - Idle timeout until connections get removed
 - Autom. sets up routing for the subnet to rout everything through the gateway
 
+# Monitor
+- Dashboard for network health including network health, connectivity and traffic
+- Network health:
+  - View metrics like throughput, response status, failed requests
+  - Diagnostics need to be enabled in order to receive metrics
+    - View a list of which resources have diagnostics enabled within Azure Monitor
+    - Collected data will be stored in storage account, log analytics workspace or streamed to an event hub or stored in an external solution
+    - Specify which logs and metrics to collect and the retention period
+  - DDoS logs can be collected for public IP addresses
+- Connectivity:
+  - Connection monitor needs to be created within th network watcher
+  - Network watcher agent needs to be installed on VMs
+  - Can be added within VM configuration at extension menu
+    - Configuration:
+      - Can create its own workspace or choose your own
+      - Test groups can be created to define tests between source and destination pair
+        - Protocol (HTTP, TCP, ICMP), port, frequency, header, endpoint path, expected status code need to be defined
+        - Thresholds for failed tests and time to receive successful tests
+        - Alerts can be created for the test groups
+- Traffic:
+  - Flow logs and traffic analytics
+  - Flow logs need to be enabled on NSG level - will be stored in storage account
+    - Traffic analytics need to be enabled during that process and will be stored in log analytics workspace
+  - Traffic analytics can be viewed within Network watcher - Azure monitor only provides status overview
+    - Traffic distribution, NSG hits, ports being used, traffic visualization
+    - Click on malicious request will forward to log analytics workspace to view details about those requests
+- Action groups (what to do in case of an alert): E-Mail, 
+
+## Microsoft Defender for Cloud
+- Needs to be enabled - different plans:
+  - Cloud Security Posture Management (CSPM): Agentless
+  - Cloud Workload Protection (CWP): Specify different services (Databases, VMs, DNS, etc.)
+    - Can be enabled per service
+    - DNS protection:
+      - Monitors Azure DNS resolution
+      - Data exfiltration through DNS tunneling (Malware sendet sensible Daten über Subdomains an Angriffsserver - DNS traffic geht of an Firewalls vorbei)
+      - Malware communications with command & control servers
+      - Malicious DNS resolvers
+      - Domains used for malicious activities
+      - Anomalies
+
+## DDoS Protection
+- Basic protection is free
+- DDoS protection plans
+  - Includes monitoring & Alerts
+  - Plans
+    - Network protection (VNET): Supports Basic + Standard SKUs, cheaper and little more features
+    - IP protection (pay per protected IP model): Only supports standard SKU
+  - Automatic monitoring and attack mitigation (L3/L4)
+  - Application policies can be setup for attack mitigation (e.g. expect only specific ports)
+  - Mitigation flow logs
+  - Integration with firewall manager
+  - Can protect: VNET, Firewall, App GW, bastion, load balancer, NICs, VMSS, VNET Gateways
+- DDoS network protection needs to be enabled for VNETs in configuration
+- Azure policy can be setup to require DDoS Protection for all networks
+- Public IP protection can be used as an alternative to network DDoS Protection in the settings of a public ip (Standard SKU only)
+
 # Bookmark
 - Abschnitt 11 - LAB
 
@@ -320,3 +377,6 @@
 - ASN number?
 - Check what route tables are created through the Virtual WAN for VNETs
 - Traffic manager + Front door
+- Log analytics workspace vs. storage account for storing diagnostics
+- Install VM extensions via terraform?
+- Have a look at azure monitor and network watcher
