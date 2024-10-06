@@ -367,8 +367,14 @@
 - Azure policy can be setup to require DDoS Protection for all networks
 - Public IP protection can be used as an alternative to network DDoS Protection in the settings of a public ip (Standard SKU only)
 
-# Bookmark
-- Abschnitt 11 - LAB
+# Private Access to Azure Services
+- Private Link Service provides private access to an otherwise not accessible network
+  - Requires a load balancer to connect to
+  - Access can be requested based on RBAC / anybody within subscription / anyone with alias
+  - Approval needs to be given for connections from different subscriptions
+- Private Endpoints can connect to the private link service, connection will work over the microsoft network
+  - PEs can be placed in different subscription and region
+  - PEs can connect to Azure PaaS solutions by default or to a private link service
 
 # Todos
 - Service endpoint policies?
