@@ -3,6 +3,7 @@
 - 5 IP addresses of every subnet are reserved: the first 4 + the last one
 - VMs can communicate between subnets on the same VNET if there is no additional NSG setup
 - Azure Network Encryption: Encrypt traffic within VNet via DTLS tunnel (accelerated networking needs to be enabled in VMs)
+- Subnets are not restricted to zones
 
 # Public IP
 - SKUs:
@@ -65,7 +66,7 @@
       - BGP protocol support for route-based VPNs - e.g. for Hub and Spoke models
         - ASN identifies a network
     - Connections can bbe added with Local network gateway as target to establish VPN connection
-      - Shared key (PSK) is required on each side, wwill be exchanged by IKE protocol
+      - Shared key (PSK) is required on each side, will be exchanged by IKE protocol
       - Types: VNet-to-VNet, Site-to-Site (IPsec), ExpressRoute
   - Virtual WAN should be used if you need more than 30 S2S connections
   - Local Network Gateway:
@@ -118,6 +119,7 @@
   - Encryption settings (phase 1 / 2), IPSec SA lifetime in KB and seconds
 - Virtual network gateway provides a health endpoint via https on port 8081
   - Requires at least /27 subnet
+- Reset VPN connections if only some VPN tunnels are losing connectivity
 
 # ExpressRoute
 - Onprem network connected to network provider edge location with dedicated line
@@ -212,7 +214,9 @@
 - Requires public IP
 - Can act as a DNS proxy (e.g. to forward DNS requests to Azure internal DNS)
 - Traffic needs to be routed through the firewall network (use private IP address of firewall)
+- RG of firewall needs to be the same as the one of the VNET
 - Forced tunneling can be enabled when VPN tunneling is used
+- IP groups can be used for easier rule management
 - Firewall manager:
   - Allows management of firewall policies across network
   - Types of networks that can be secured that way: Virtual WAN, Hub + Spoke
@@ -252,7 +256,7 @@
   - Azure private DNS records can be used OnPrem
   - Provides DNS services between On-Prem and Azure
   - Conditional forwarding via rules -> e.g. if internet needs to be resolved, the Azure DNS Private Resolver can forward those requests to an internet DNS server
-  - Inbound (from on prem to azure)/output (from azure to on prem) endpoints, latter will be forwarded to onprem DNS
+  - Inbound (from on prem to azure)/outbound (from azure to on prem) endpoints, latter will be forwarded to onprem DNS
 - Public DNS zone
   - You can register any domain name -> Multiple Name servers of azure will be displayed
   - Azure name servers need to be configured in a domain name registrar
@@ -280,7 +284,7 @@
     - Standard: Within the same region
     - Global: Across Azure regions
   - Traffic over Microsoft backbone network, not public internet
-  - Pricing for outbount and inbound traffic even for standard VNET peering (charged twice)
+  - Pricing for outbound and inbound traffic even for standard VNET peering (charged twice)
   - IP ranges should not be overlapping
   - Configuration:
     - Block traffic from one direction to the other
@@ -306,6 +310,9 @@
       - S2S: 1 SU = 500 Mbps
       - P2S: 1 SU = 500 Mbps, supports 500 clients
       - ER: 1 SU = 2 Gbps
+    - SKUs:
+      - Basic: S2S only
+      - Standard: All integrations
   - Hub:
     - Has its own network private address space
     - Can create gateways for VPN S2S/P2S and ExpressRoute
@@ -320,6 +327,12 @@
   - Transit VNet connectivity can be established by connecting a NVA in a connected VNet and peer VNets with this Vnet
     - Add custom routes to the outer VNets to point to the NVA
     - Routes will be synced automatically through BGP peering from Virtual WAN router
+  - Routing
+    - Route tables can be created manually and associated to VNets and VPN / ER
+    - Propagation of routes from connections towards the route table can be enabled
+    - Routing preference can be set for hub (ER / VPN / AS Path)
+    - Routing policies (internet / private) of a hub can be used to forward traffic through a firewall -> will advertise new default route to all connections
+  - Private endpoints deployed to one connected VNet will be available for all other connected VNets
 
 # Routing
 - System routes: Default set of routes
@@ -381,6 +394,7 @@
 - Outbound rules:
   - SNAT -> Use public IP of LB to provide outbound internet connectivity for BE
 - Good use case in front of IaaS (VMs)
+- HA ports: 1 load balancing rule for multiple protocols
 
 ## Application Gateway
   - Layer 7 (application) -> URLs, paths, etc.
@@ -393,6 +407,7 @@
   - Autoscaling options for the Gateway itself
   - Supports public/private or both IP configs for Frontend
   - Supports other services in addition to azure VMs (compared to Load Balancer): App Services, IP addresses, FQDNs
+  - Each backend pool needs its own listener and routing rules
   - Routing rules:
     - HTTP/HTTPS traffic only
     - Multi-site to register more web applications on the same port (e.g. with different FQDNs)
@@ -445,6 +460,11 @@
 - Autom. sets up routing for the subnet to route everything through the gateway
 - NAT only support IPv4, not IPv6 and can span only one VNet
 - VMs in private subnet can connect outbound to the internet while staying private
+- Subnet placement:
+  - Not in subnets where basic SKUs are being used
+  - Not in GW subnet
+  - Only one NAT GW per subnet
+- Can be used together with LB for dual stack outbound connectivity
 
 # Monitor
 - Dashboard for network health including network health, connectivity and traffic
@@ -529,7 +549,9 @@
 - App service VNet integration:
   - Can be integrated into VNet in the same region
   - Gateway-required VNet integration: Integration of a service into a VNet if the VNet is in a different region, requires VPN P2S
-  - 
+  - Only a single service plan can use the subnet
+  - App Service will use a private IP for communication within the VNet for outbound traffic
+  - To receive also private inbound traffic, a private endpoint needs to be deployed
 
 # Bookmark:
-- https://www.examtopics.com/exams/microsoft/az-700/view/11/
+- https://www.examtopics.com/exams/microsoft/az-700/view/14/
