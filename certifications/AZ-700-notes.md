@@ -414,7 +414,7 @@
     - Cookie-based affinity to root based on cookies to the same target server
     - Connection draining: When server gets shutdown, wait until there is no more traffic 
     - Backend paths and host names can be overriden
-    - Path-based routing rules
+    - Path-based routing rules vs basic routing rules (forward all requests on listener to be pool)
   - HTTP headers can be rewritten
     - Associated with routing rules
     - Conditions and priorities can be added
@@ -549,9 +549,8 @@
 - App service VNet integration:
   - Can be integrated into VNet in the same region
   - Gateway-required VNet integration: Integration of a service into a VNet if the VNet is in a different region, requires VPN P2S
+    - Route-based, SSTP, certificate upload is not required
   - Only a single service plan can use the subnet
   - App Service will use a private IP for communication within the VNet for outbound traffic
   - To receive also private inbound traffic, a private endpoint needs to be deployed
 
-# Bookmark:
-- https://www.examtopics.com/exams/microsoft/az-700/view/14/
