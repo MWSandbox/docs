@@ -98,6 +98,57 @@
   - Max. dead containers per pod
   - Max. dead containers for the cluster
 
+# Labels, Annotations and Selectors
+- Labels are intended to be used to specify identifying attributes of objects that are meaningful and relevant to users, but do not directly imply semantics to the core system
+  - Labels allow for efficient queries and watches and are ideal for use in UIs and CLIs. Non-identifying information should be recorded using annotations
+  - Syntax: Optional prefix needs to be DNS subdomain followed by / and the unique name per object
+  - If prefix is omitted, label key is presumed to be private to the user - automated system component must specify a prefix
+- Label selector core grouping mechanism in k8s
+  - Can consist of multiple requirements (, separated) - translated to logical && operator, there is no logical ||
+  - Types:
+    - Equality-based
+        - Allows filtering by label keys and values
+        - Operators: =, ==, != (first two are equal)
+    - Set-based
+        - Allows filtering by a set of values, can be mixed with equality-based selectors
+        - Operators: in, notin, exists (only for key identifier)
+        - E.g.: environment in (production, qa) -> key = environment, values in (production, qa)
+        - E.g.: partition -> Label with key partition exists
+        - E.g.: !partition -> Labgel with key partition does not exist
+- API List and Watch filtering
+    - label selectors can be used to filter returned objects via query parameter
+    - E.g.: ?labelSelector=environment%3Dproduction,tier%3Dfrontend
+    - For kubectl -l parameter can be used: kubectl get pods -l environment=production,tier=frontend
+- For labelSelector of services only equality-based selectors are allowed (while jobs, deployments, rs support both)
+- Annotations
+  - Attach arbitrary non-identifying metadata to objects. Clients such as tools and libraries can retrieve this metadata.
+  - Annotations are not used to identify and select objects
+  - Naming similar to labels (optional prefix, otherwise considered private to user)
+- Field Selectors
+    - Select objects based on resource fields (e.g. status.phase), but not all fields are supported
+    - E.g.: `kubectl get pods --field-selector status.phase=Running`
+
+# Finalizers
+- Finalizers are namespaced keys that tell Kubernetes to wait until specific conditions are met before it fully deletes resources marked for deletion. 
+- Finalizers alert controllers to clean up resources the deleted object owned.
+- Deletion process:
+    - k8s marks object as deleted by setting metadatadeletionTimestamp
+    - Control plane or other components take actions defined by finalizers and remove the corresponding finalizer afterwards
+    - When the finalizers field is empty, the object gets deleted
+- Finalizers don't usually specify the code to execute. Instead, they are typically lists of keys on a specific resource similar to annotations.
+- E.g.: `kubernetes.io/pv-protection` Prevents deletion of PV objects when it is in use
+
+# Owners and Dependents
+- Maintained in `metadata.ownerReferences` field - e.g. Replica Set that owns pods
+- Contains `blockOwnerDeletion` field that controls if dependent objects can block owner deletions
+- k8s adds finalizers to an owner resource when using foreground or orphan cascading deletion
+
+# Namespaces
+- There are namespaced objects (Deployments, Services, etc.) and cluster-wide objects (StorageClass, Nodes, PersistentVolumes)
+- Initial namespaces:
+    - kube-node-lease: Holds lease object - e.g. for node heartbeats
+    - kube-public: Readable by all clients (including those not authenticated)
+
 # Admission Plugins
   - NodeRestriction:
     - Prevents kubelets from modifying labels with node-restricition prefix for workload isolation
@@ -121,9 +172,8 @@
 - https://kubernetes.io/docs/reference/command-line-tools-reference/
 - Node restriction admission plugin
 - kubelet authentication and/or authorization should be enabled: https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/
-- All built-in controllers
 - Restart policy
-- Owner references
+- Resource Quotas: https://kubernetes.io/docs/concepts/policy/resource-quotas/
 
 # Service Accounts
 - Kubernetes will automtically inject the public root certificate and a bearer token into the pod when its initated to be able to call the api-server
@@ -133,5 +183,5 @@
 - Write own controller
 
 # Progress
-Finished cluster architecture
-Stopped at https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+Finished overview, cluster architecture
+Stopped at https://kubernetes.io/docs/concepts/containers/
