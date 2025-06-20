@@ -10,3 +10,6 @@
   
 - Admission plugins
   - visible in /snap/microk8s/current/default-args/admission-control-config-file.yaml
+
+- containerd
+    - Configuration with CR handlers available at /snap/microk8s/current/default-args/containerd-template.toml  

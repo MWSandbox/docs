@@ -60,6 +60,59 @@
 - kube-proxy?
   - Maintains network rules on nodes to implement services
 
+# Pods
+- Lifecycle: Pending, Running, Succeeded/Failed
+- `restartPolicy` defines how k8s reacts to containers exiting due to errors
+  - Sequence:
+    - Initial crash: k8s attempts an immediate restart based on `restartPolicy`
+    - Repeated crashes: Exponential backoff delay is applied for subsequent restarts
+    - CrashLoopBackOff state: Container is in crash loop
+    - Backoff reset: Backoff delay is resetted if container runs successfully for a certain duration
+  - Possible values:
+    - Always: Restarts container after any termination (default)
+    - OnFailure: Only restarts container if exit code non-zero
+    - Never
+  - Since 1.32 the restart delay can be configured using `KubeletConfiguration` object
+  - Probes:
+    - liveness: Indicates whether container is running
+      - if it fails kubelet kills container
+    - readiness: Indicates whether container is ready to respond to requests
+      - if it fails, the pod's IP is removed from all services
+    - startup: Indicates whether the application within the container is started, all other probes are disabled until this one succeeds
+      - if it fails kubelet kills container
+  - Termination:
+    - kubelet attempts graceful shutdown (SIGTERM) until grace period (default 30s) expires, then KILL signal
+    - STOPSIGNAL instruction can be defined in container image to specify signal used (by default SIGTERM)
+    - Since `1.33` the stop signal can also be defined as part of the container spec (dependent on OS)
+    - When forceful deletes are triggered, API will remove the pod immediately without waiting for confirmation from kubelet (might run indefinetely)
+    - Sidecar containers are being terminated after main containers
+    - Failed pod objects remain in the API until they exceed the `terminated-pod-gc-threshold` in the kube-controller-manager
+  - Init containers:
+    - Start before main application container and run to completion
+    - Do not support probes
+    - Can run with a different view of the filesystem than app containers
+  - Sidecar containers:
+    - Stable since `1.33`
+    - Are special init contaienrs with a restartPolicy of Always
+    - Share same network and storage namespaces with the primary container and can optionally share volumes (filesystems)
+  - Ephemeral Containers
+    - Stable since `1.25`
+    - Runs temporarily in an existing pod to aacomplish user-initiated actions such as troubleshooting
+    - They lack guarantees for resources or execution and will never be automatically restarted
+    - Good in addition to small images that do not provide many tools for debugging
+    - Process namespaces sharing can be enabled to view processes in other containers
+    - Can be added using `kubectl debug` command
+  - Quality of Service (QoS) classes
+    - pods are assigned to QoS classes based on the resource requests / limits
+    - Guaranteed: Evicted last, memory + cpu limit = request
+    - Burstable: Evicted second, not guaranteed, but at least one container has a memory/cpu request/limit
+    - BestEffort: Evicted first, no memory/cpu request/limit at all
+  - User namespaces
+    - in beta since `1.30`
+    - Security measure to isolate the user running inside the container from the one in the host
+    - Processes running as root in a container can run as non-root on the host -> root only inside the user namespace
+    - Granted capabilities are also only valid within the user namespace
+
 # Controllers
 -  A control loop is a non-terminating loop that regulates the state of a system. In Kubernetes, controllers are control loops that watch the state of your cluster, then make or request changes where needed. Each controller tries to move the current cluster state closer to the desired state.
 -  Built-in controllers run in the kube-controller-manager
@@ -84,10 +137,39 @@
   - Create default ServiceAccounts for new namespaces.
 
 # Container Runtime
+- It is responsible for managing the execution and lifecycle of containers
 - A working container runtime is required on each node to launch pods and containers
+- More than one CR can be used within a cluster - pods can specify it via RuntimeClass
+  - For each CR handler a RuntimeClass object can be created in the cluster and then referenced within the pods
+  - Handlers are defined on the nodes (e.g. containerd: config.toml)
+  - If a runtime is only available at specific nodes, `scheduling` field can be provided to schedule pod on corresponding nodes
+  - Overhead resources when running pods in a specific runtime can be specified with `overhead` field
 - Container Runtime Interface (CRI)
   - Enables kubelet to use variety of CR
   - Main protocol for communication between kubelet and container runtime (via grpc)
+- Container = Technology for packaging an application along with its runtime dependencies
+- Alternatives:
+  - containerd
+    - General purpose CR maintained by CNCF
+    - Own image mgmt library, integrates well with docker images
+    - Recommended by k8s as standard runtime
+    - Little more overhead compared to CRI-O
+    - Highly extensible with plugin architecture
+  - CRI-O
+    - Developed specifically for kubernetes (originally from OpenShift)
+    - Focuses on minimalism and security
+    - Uses containers/images and containers/storage from podman/buildah ecosystem
+
+# Container Lifecycle Hooks
+- PostStart
+  - Executed immediately after container creation, but might run after ENTRYPOINT
+- PreStop
+  - Executed immediately before container is terminated, hook must complete before TERM signal
+- Hook delivery guaranteed at least once -> Might be executed multiple times
+- Hook handler implementations:
+    - Exec: Executed command or script
+    - HTTP: Executes HTTP request against container endpoint
+    - Sleep: Pauses the container for a specified duration
 
 # Garbage Collection
 - Objects can link each other via owner references (dependent objects) - only in same namespace possible
@@ -159,7 +241,6 @@
   - Since 1.26 kube-apiserver uses leases to publish its identity
 
 # Open Questions
-- What is a container runtime? What are the differences between different container runtimes?
 - What is the operator pattern? Code an example
 - https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 - DNS
@@ -174,6 +255,8 @@
 - kubelet authentication and/or authorization should be enabled: https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/
 - Restart policy
 - Resource Quotas: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+- EndpointSlices
+- https://kubernetes.io/docs/tasks/debug/debug-application/
 
 # Service Accounts
 - Kubernetes will automtically inject the public root certificate and a bearer token into the pod when its initated to be able to call the api-server
@@ -183,5 +266,5 @@
 - Write own controller
 
 # Progress
-Finished overview, cluster architecture
-Stopped at https://kubernetes.io/docs/concepts/containers/
+Finished overview, cluster architecture, containers
+Stopped at https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
