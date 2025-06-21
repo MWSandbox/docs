@@ -113,6 +113,40 @@
     - Processes running as root in a container can run as non-root on the host -> root only inside the user namespace
     - Granted capabilities are also only valid within the user namespace
 
+# Deployments
+  - Change causes for the revision history can be added via annotation `kubernetes.io/change-cause`
+  - `progressDeadlineSeconds` can be set to tell when a deployment progress has stalled
+  - `.spec.revisionHistoryLimit` can be set to specify how many old ReplicaSets to retain
+
+# StatefulSets
+  - Runs a group of pods and maintains a sticky identity for each of those pods, maintained across any rescheduling
+  - Provides guarantees about ordering and uniqueness of the pods
+  - Deleting a StatefulSet will not delete associated volumes
+  - Require a Headless Service for the network identity
+  - Pod identity consist of an ordinal, stable network identity (provided via headless service) and stable storage
+    - Ordinal index is visible in pods as label `apps.kubernetes.io/pod-index`
+    - Network ID:
+        - Hostname = [STATEFULSET NAME]-[ORDINAL]
+        - Pod DNS = [POD]-[ORDINAL].[SVC].[NS].svc.cluster.local
+    - Each PVC is associated with a specific pod and will be re-attached after re-scheduling
+  - Since `1.32` PVC retention can be controlled with `.spec.persistentVolumeClaimRetentionPolicy` field
+
+# Jobs
+  - `.spec.completions` can be set to specify how many pods need to complete (for parallel executions)
+  - If parallel execution is set without specifying completions, a work queue can be implemented
+    - Each pod nees to be capable to determine when the overall job is termated with success
+    - Once a pod exits with success all other pods should be in the process of exiting
+  - Pods can be restarted on failure via policy - pod stays on the node, but container is re-run -> local restarts need to be supported
+  - Pods in parallel execution can be indexed for specific retry logic (since `1.33`)
+  - failure and success policies can be configured - e.g. to ignore specific error codes or succeed on specific results
+  - Completed jobs remain and need to be deleted manually
+  - Automatic cleanup via.
+    - cronjobs with capacity-based cleanup policy
+    - TTL by specifying `.spec.ttlSecondsAfterFinished`
+  - Cronjobs:
+    - Concurrency policy can be set to allow, forbid or replace (replace old job run with new one)
+    - Timezones can be specifiec by `.spec.timeZone` field (since `1.27`) - otherwise local time zone is assumed
+
 # Controllers
 -  A control loop is a non-terminating loop that regulates the state of a system. In Kubernetes, controllers are control loops that watch the state of your cluster, then make or request changes where needed. Each controller tries to move the current cluster state closer to the desired state.
 -  Built-in controllers run in the kube-controller-manager
@@ -210,6 +244,82 @@
     - Select objects based on resource fields (e.g. status.phase), but not all fields are supported
     - E.g.: `kubectl get pods --field-selector status.phase=Running`
 
+# Autoscaling
+ - In addition to hpa following scaling mechanisms can be used:
+    - VerticalPodAutoscaler:
+        - Separate project
+        - Recreates pods when vertical scaling applies - is being worked on for in-place scaling
+    - Autoscaling based on cluster size:
+        - Cluster Proportional Autoscaler, separate project (beta)
+    - Event-driven autoscaling
+        - KEDA, separate project, CNCF
+        - E.g.: Scale base on amount of messages in queue
+    - Based on schedules:
+        - KEDA using Cron scaler
+
+# Networking
+- Each pod in a cluster gets its own unique cluster-wide IP
+- Each pod has its own private network namespace shared by all its containers that can communicate over localhost
+- The pod network (also called a cluster network) handles communication between pods
+- Services provide a stable (long lived) IP or hostname and act as proxies
+- Gateway API / Ingresses makes service accessible outside the cluster
+- Implementation of k8s networking:
+  - Pod network namespaces: By CRI
+  - Pod network: CNI plugins (e.g. Calico, Cilium)
+  - Network policy: CNI plugins
+  - Gateway API: E.g. Istio
+
+# Services
+  - Exposes an application behind a single outward-facing endpoint
+  - Supported protocols: SCTP, TCP, UDP
+  - Can be defined without selectors, then endpoint slices need to be added instead
+  - Endpoint slices can be linked to services by setting label `kubernetes-io/service-name`
+  - kubelet adds env variables for each active service
+  - Since `1.33` IPAddress and ServiceCIDR objects can be used
+  - Types:
+    - ClusterIP: Default, k8s assigns service a cluster-internal IP address
+      - Specific Cluster IP can be requested by setting `.spec.clusterIP`
+      - If `.spec.clusterIP` is set to `None` then a headless service is defined
+        - kube-proxy does not handle those services, no load balancing or proxying is done
+        - allows client to connect to whatever pod it prefers, directly
+        - report IPs of individual pods via internal DNS records
+        - When defined with selectors: EndpointSlices are created and A records for the pods are returned
+    - NodePort: Exposes service on each node's ip at a static port
+      - Specific port can be requested
+    - LoadBalancer: Exposes service externally using an external load balancer
+      - k8s start requesting a Node port and the cloud-controller-manager configures the external lb to forward traffic to that port
+      - `.spec.loadBalancerClass` field can be used to select a non-default lb implementation from the cloud provider
+      - Sets up network-level lbs (NLB in AWS or Load Balancer in Azure) - Layer 7 lbs are used for ingress controllers
+    - ExternalName: Maps service to a DNS name -> Cluster DNS will return CNAME record with external hostname value
+      - No mapping via selectors but via DNS
+      - Looking up [SERVICE].[NS].svc.cluster.local will return CNAME record with specified value
+  - External IPs can be specified, if k8s runs behind another proxy -> service can be accessed by that IP and the defined port
+  - Virtual IPs and kube-proxy
+    - Every node runs kube-proxy that implements aa virtual IP for services (other than ExternalName)
+    - kube-proxy configures node to capture traffic to service's cluster IP and port and redirect it to one of service's endpoints
+    - Modes:
+      - iptables:
+        - By default select backend pod at random
+        - For large cluster, lots of iptable rules can cause problems, sync. interval can be adjusted
+        - Rules can be viewed on node via `sudo iptables-legacy -t nat -S | grep KUBE`
+          - Each rule has a percentage value (e.g. for 3 targets): 33%, 50%, 100% and will be evaluated one after another 
+      - ipvs:
+        - Better performance compared to h
+        - Lots of different load balancing options supported: Round Robin, Weighted Round Robin, Least Connection, WLC, Locality based Least Connection, Shortest Expected Delay, etc.
+      - nftables:
+        - Successor to iptables API, selects backend at random
+        - Since `1.33`
+  - EndpointSlices:
+    - Represent a slice of the backing network endpoints for a service
+  - Traffic policies:
+    - `.spec.internalTrafficPolicy` and `.spec.externalTrafficPolicy` can be used to control how traffic is routed
+    - Cluster (all ready targets) vs. Local (all ready node-local targets)
+  - Traffic distribution:
+    - Since `1.33` to express preferences on how traffic should be routed
+    - PreferClose: Preferably at same zone as client, EndpointSlices will be updated with hints
+    - PreferSameZone (alpha): Will later replace PreferClose
+    - PreferSameNode (alpha): Preferably at same node as client
+
 # Finalizers
 - Finalizers are namespaced keys that tell Kubernetes to wait until specific conditions are met before it fully deletes resources marked for deletion. 
 - Finalizers alert controllers to clean up resources the deleted object owned.
@@ -257,6 +367,9 @@
 - Resource Quotas: https://kubernetes.io/docs/concepts/policy/resource-quotas/
 - EndpointSlices
 - https://kubernetes.io/docs/tasks/debug/debug-application/
+- VerticalPodAutoscaler
+- https://kubernetes.io/docs/reference/networking/virtual-ips/
+- Services with internal load balancers
 
 # Service Accounts
 - Kubernetes will automtically inject the public root certificate and a bearer token into the pod when its initated to be able to call the api-server
@@ -266,5 +379,5 @@
 - Write own controller
 
 # Progress
-Finished overview, cluster architecture, containers
-Stopped at https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+Finished overview, cluster architecture, containers, workloads
+Stopped at https://kubernetes.io/docs/concepts/services-networking/ingress/
