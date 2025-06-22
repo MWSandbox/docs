@@ -268,6 +268,30 @@
   - Pod network: CNI plugins (e.g. Calico, Cilium)
   - Network policy: CNI plugins
   - Gateway API: E.g. Istio
+- Network policies
+  - Control traffic flow at IP address or port level (OSI 3+4)
+  - Apply to a pod on at least one end of the connection
+  - By default all ingress and egress connections are allowed
+- DNS
+  - DNS config in pods at /etc/resolv.conf - populated by kubelet
+  - Pods and services receive A records
+  - Named ports that are port of services receive SRV records
+  - DNS policies for pods:
+    - Default: Same as for the node, only named default, ist not configured as default option
+    - ClusterFirst: Default, every query for outside domains is forwarded to an upstream NS
+    - ClusterFirstWithHostNet: For pods running with hostNetwork
+    - None: All DNS settings need to be provided in pod spec
+- IPv6
+  - Dual-stack is supported -> IPv4 and IPv6 addresses are configured for pods and services
+  - Can be specified with `.spec.ipFamilyPolicy` on service creation
+- Topology Aware Routing
+  - Prefer same-zone-traffic for higher performance or lower cost
+  - Hints stored in Endpoint Slices
+  - Topology Aware Routing can be enabled by setting `service.kubernetes.io/topology-mode` to Auto for a Service
+- Service Internal Traffic Policy
+  - Keep network traffic within a node if pods are running on the same node
+  - Will not route traffic at all, if there are pods only available on other nodes
+  - Can be enabled by setting `.spec.internalTrafficPolicy` to Local for a service
 
 # Services
   - Exposes an application behind a single outward-facing endpoint
@@ -311,6 +335,9 @@
         - Since `1.33`
   - EndpointSlices:
     - Represent a slice of the backing network endpoints for a service
+    - Can contain topology information for routing purposes (node name, zone)
+    - Replacement of older Endpoints API (Endpoints are mirrored to EndpointSlices for compatibility reasons) - deprecated in `1.33`
+
   - Traffic policies:
     - `.spec.internalTrafficPolicy` and `.spec.externalTrafficPolicy` can be used to control how traffic is routed
     - Cluster (all ready targets) vs. Local (all ready node-local targets)
@@ -319,6 +346,23 @@
     - PreferClose: Preferably at same zone as client, EndpointSlices will be updated with hints
     - PreferSameZone (alpha): Will later replace PreferClose
     - PreferSameNode (alpha): Preferably at same node as client
+
+# Ingresses
+- Manage external access to the services in a cluster, typically HTTP/HTTPS (though implementations might support other protocols as well)
+- May provide load balancing, SSL termination and name-based virtual hosting
+- Configuration options:
+  - Simple fanout: Routes traffic from single IP to more than on service based on HTTP URI requested
+  - Name-based virtual hosting: Provides multiple hostnames at the same IP and routes traffic based on the hostname to different services
+- Uses load balancing algorithms provided by implementation - default for nginx: Round Robin
+- Cloud: Application Gateway Ingress Controller (Azure), AWS Load Balancer Controller (ALB)
+
+# Gateway API
+- Make network services available using extensible, role-oriented, protocol-aware configuration
+- Supports more protocols than ingresses do (e.g. gRPC, TCP, UDP) though most of them are still experimental
+- Stable APIs:
+  - GatewayClass: Defines gateway type and the managing controller
+  - Gateway: Defines instance of a gateway class and thus traffic handling infrastructure, such as a cloud load balancer (ALB or Application Gateway)
+  - HTTPRoute: HTTP-specific rules for mapping traffic from Gateway listener to backend network endpoints (e.g. Service)
 
 # Finalizers
 - Finalizers are namespaced keys that tell Kubernetes to wait until specific conditions are met before it fully deletes resources marked for deletion. 
@@ -342,13 +386,63 @@
     - kube-public: Readable by all clients (including those not authenticated)
 
 # Admission Plugins
-  - NodeRestriction:
-    - Prevents kubelets from modifying labels with node-restricition prefix for workload isolation
+- NodeRestriction:
+  - Prevents kubelets from modifying labels with node-restricition prefix for workload isolation
 
 # Leases
-  - For locking shared resources, part of coordination.k8s.io API group
-  - Every node has its own lease in kube-node-lease namespace, every heartbeat is an update request to that lease
-  - Since 1.26 kube-apiserver uses leases to publish its identity
+- For locking shared resources, part of coordination.k8s.io API group
+- Every node has its own lease in kube-node-lease namespace, every heartbeat is an update request to that lease
+- Since 1.26 kube-apiserver uses leases to publish its identity
+
+# Volumes
+- Provide ability for pods tho share data via filesystem
+- Use cases:
+  - Populating configuration file based on a configmap or secret
+  - temp space
+  - sharing filesystem between two containers in the same pod
+  - sharing filesystem between two different pods (even if they run on different nodes)
+  - Durable storage even after restarts
+- Volumes cannot be mountes nested, but similar with subPath
+- Types:
+  - ConfigMap:
+    - Mounted as readonly and UTF-8 encoded
+    - When using subPath, mount will not receive updates when ConfigMap changes
+  - downwardAPI: Exposes information about the running pod
+  - emptyDir:
+    - Shared by all containers, will be removed when pod is removed from node
+    - in memory file system can be used optionally
+    - size limit can be specified
+  - fc (fibre channel)
+  - hostPath: Mounts file or directory from node's filesystem (security risk)
+  - image (beta since `1.33`): OCI object at kubelet's host machine
+  - iscsi: Existing iscsi volume can be mounted, content will be preserved, can be mounted read-only by many pods
+  - local: Mounted local disk/partition/etc.
+    - Can only be used as staticall-created PVs
+  - nfs: Existing NFS share can be mounted
+    - Possibility for multiple writers in parallel
+  - persistentVolumeClaim:
+    - Claim durable storage without knowing the details of the particular cloud environment
+  - projected: Maps several existing volume sources into the same directory
+  - secret: Always mounted as readOnly
+- CSI (container storage interface) can be used to extend supported types of volumes
+  - Azure: azurefile (SMB, NFS), azuredisk (block storage)
+  - AWS: EBS, EFS
+- Persistent Volumes
+  - Provisioning Types:
+    - Static
+    - Dynamic: If there is no static matching PV, the cluster will try to provision one dynamically based on StorageClasses
+  - PVCs are only deleted, if they are not acitvely used anymore, PVs only if they are not bound to any PVCs anymore
+  - Reclaim Policy:
+    - Retain: After PVC deletion the PV is not available for other pods, since there is still old data on it
+    - Delete: Storage asset will be removed from external infrastructure (finalizers can be used since `1.33`)
+  - PVCs can be expanded using `allowVolumeExpansion` field
+  - Volume modes: Filesystem (mounted into directory) vs. block (raw block device)
+  - In cloud environments PVs can be created from snapshots
+  - Volume populators (controllers) can be used to create non-empty volumes, where the content is determined by a custom resource.
+- Projected Volumes
+  - Since `1.33` (beta) the cluster trust bundles can be injected into the container filesystem
+- Ephemeral Volumes
+  - Can be used if data does not need to be persisted
 
 # Open Questions
 - What is the operator pattern? Code an example
@@ -377,7 +471,9 @@
 # Practice
 - Enable rbac for cluster
 - Write own controller
+- Write network policies, control which namespace can communicate with each other
+- Checkout cluster trust bundles
 
 # Progress
-Finished overview, cluster architecture, containers, workloads
-Stopped at https://kubernetes.io/docs/concepts/services-networking/ingress/
+Finished overview, cluster architecture, containers, workloads, networking
+Stopped at https://kubernetes.io/docs/concepts/storage/storage-classes/
